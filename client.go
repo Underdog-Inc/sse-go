@@ -151,7 +151,6 @@ func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch
 
 		if !connected {
 			// Notify connect
-			errch <- nil
 			connected = true
 		}
 
@@ -162,6 +161,8 @@ func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch
 			var msg *Event
 			// Wait for message to arrive or exit
 			select {
+			case <-ctx.Done():
+				return nil
 			case <-c.subscribed[ch]:
 				return nil
 			case err = <-errorChan:
@@ -172,6 +173,8 @@ func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch
 			// Wait for message to be sent or exit
 			if msg != nil {
 				select {
+				case <-ctx.Done():
+					return nil
 				case <-c.subscribed[ch]:
 					return nil
 				case ch <- msg:
@@ -191,10 +194,7 @@ func (c *Client) SubscribeChanWithContext(ctx context.Context, stream string, ch
 			err = backoff.RetryNotify(operation, backoff.NewExponentialBackOff(), c.ReconnectNotify)
 		}
 
-		// channel closed once connected
-		if err != nil && !connected {
-			errch <- err
-		}
+		errch <- err
 	}()
 	err := <-errch
 	close(errch)
